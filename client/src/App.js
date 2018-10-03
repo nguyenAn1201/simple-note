@@ -2,14 +2,14 @@ import React, { Component } from 'react';
 import axios from 'axios';
 import './App.css';
 import { Navbar, Button } from 'react-bootstrap';
-
-function Note(props) {
+/*
+  function Note(props) {
   return (
     <div className="note">
-      <div className="title-container"><h4>{props.title} {props.index}</h4></div>
+      <div className="title-container"><h4>{props.title}</h4></div>
       <p>{props.content}</p>
       <Button bsStyle="danger" onClick={props.delNote}>Delete</Button>
-      <Button bsStyle="primary">Edit</Button>
+      <Button bsStyle="primary" onClick={props.renderEdit}>Edit</Button>
     </div>
   )
 }
@@ -18,21 +18,13 @@ function EditNote(props) {
   return (
     <div className="note">
       <div className="title-container"><h4>{props.title} {props.index}</h4></div>
-      <textarea className="textarea" name="content" defaultValue={props.content} />
-      <Button bsStyle="danger" onClick={props.delNote}>Cancel</Button>
-      <Button bsStyle="primary">Done</Button>
+      <textarea className="textarea" name="content" value={props.content} onChange={props.handleContentChange} />
+      <Button bsStyle="danger" onClick={props.cancelEdit}>Cancel</Button>
+      <Button bsStyle="primary" >Done</Button>
     </div>
   )
 }
-
-function RenderSelection(props) {
-  const editClicked = props.editClicked;
-  if (editClicked) {
-    return <EditNote title={props.title} />
-  } else {
-    return <Note title={props.title} content={props.content} delNote={props.delNote}/>
-  }
-}
+*/
 
 class App extends Component {
   constructor(props) {
@@ -43,12 +35,14 @@ class App extends Component {
       id: null,
       title: "",
       content: "",
+      toEdit: null
     }
 
     this.handleTitleChange = this.handleTitleChange.bind(this);
     this.handleContentChange = this.handleContentChange.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
     this.deleteNote = this.deleteNote.bind(this);
+    this.handleEditSubmit = this.handleEditSubmit.bind(this);
   }
   handleContentChange = (event) => {
     this.setState({ content: event.target.value});
@@ -56,19 +50,25 @@ class App extends Component {
   handleTitleChange = (event) => {
     this.setState({ title: event.target.value });
   }
-  
+
   // Request POST with new title and content. 
   handleSubmit = (event) => {
-    console.log('Note title: ' + this.state.title + '\nNote content: ' + this.state.content);
+    event.preventDefault();
+    var tempArr = Object.assign([], this.state.notes);
     axios.post('http://localhost:3000/notes', {
-      id: this.state.id,
       title: this.state.title,
       content: this.state.content
     })
-     .then(res => console.log(res))
+     .then(res => {
+       // for id, have to wait for request to be done to have MongoDB assign the id. Then set id state to the response's data
+       var object = {id: res.data._id, title: this.state.title,content: this.state.content};
+       tempArr.push(object);
+       this.setState({ notes: tempArr })
+       console.log(res)
+     })
      .catch(err => console.log(err));
   }
-  
+
   // Get the data when components is rendered
   componentDidMount() {
     axios.get('http://localhost:3000/notes')
@@ -86,26 +86,43 @@ class App extends Component {
   deleteNote = (index, noteId) => {
     axios.delete('http://localhost:3000/notes/'+ noteId)
      .then(res => {
+      const tempNoteArray = Object.assign([], this.state.notes);  // Creating a duplicate of notes[] insteand of referencing notes[] 
+      tempNoteArray.splice(index, 1);
+      this.setState({ notes: tempNoteArray }, () => {console.log("Array after deletion: " + Object.assign([], this.state.notes))});
        console.log(res);
      })
      .catch(err => {
        console.log(err);
      })
-    const tempNoteArray = Object.assign([], this.state.notes);  // Creating a duplicate of notes[] insteand of referencing notes[] 
-    tempNoteArray.splice(index, 1);
-    this.setState({ notes: tempNoteArray });
-    console.log("Array after deletion: " + this.state.notes);
   }
 
-  // Request PUT when edit button is clicked, rerender component with editted data. 
-  editNote = (index, noteId) => {
-    axios.put('http://localhost:3000/notes/' + noteId)
+  edit = (index) => {
+    this.setState({ toEdit: index })
+  }
+
+  // Handle new content edit
+  handleEditSubmit = (index, noteId) => {
+    var tempArr = Object.assign([], this.state.notes);
+    axios.put('http://localhost:3000/notes/' + noteId, 
+    {
+      content: this.state.content
+    })
      .then(res => {
-       console.log(res);
-     })
+      tempArr[index].content = this.state.content
+      this.setState({
+       notes: tempArr,
+       toEdit: null // Rerender the editNote into a normal note.
+      }) 
+      console.log(res);
+    })
      .catch(err => {
        console.log(err);
+       this.setState({ toEdit: null })
      })
+  }
+
+  handleCancel = () => {
+    this.setState({ toEdit: null })
   }
 
   render() {
@@ -118,24 +135,56 @@ class App extends Component {
           <div>
             <label>Title </label> 
             <p> 
-              <input className="title" type="text" name="title" value={this.state.title} onChange={this.handleTitleChange}/>
+              <input 
+                className="title" 
+                type="text" 
+                name="title" 
+                value={this.state.title} 
+                onChange={this.handleTitleChange}
+              />
             </p>
             <div>
               <label>Content</label>
             </div>
-            <textarea className="textarea" name="content" value={this.state.content} onChange={this.handleContentChange} />
+            <textarea 
+              className="textarea" 
+              name="content" 
+              //value={this.state.content} 
+              onChange={this.handleContentChange} 
+            />
           </div>
-          <Button bsStyle="primary" type="submit" > Submit </Button>
+          <Button bsStyle="primary" type="submit"> Submit </Button>
         </form>
        
         {/* Getting the notes */}
-        <div className="note-container">
-          {this.state.notes.map((output, index) => (
-          <RenderSelection key={index} editClicked={false} index={index} id={output.id} title={output.title} content={output.content} delNote={this.deleteNote.bind(this, index, output.id)} />
-          //<Note key={index} index={index} id={output.id} title={output.title} content={output.content} delNote={this.deleteNote.bind(this, index, output.id)}/>
-          //<EditNote key={index} index={index} id={output.id} title={output.title} content={output.content} onChange={this.handleContentChange}/>
-          ))}
-
+        <div className="note-container">  
+          {this.state.notes.map((output, index) => {
+            if (this.state.toEdit === index) {
+              return (
+                <div key={index} className="note">
+                  <div className="title-container"><h4>{output.title}</h4></div>
+                    <textarea 
+                      className="textarea"
+                      type="text" 
+                      name="edit-content" 
+                      defaultValue={output.content} 
+                      onChange={this.handleContentChange} 
+                    />
+                    <Button bsStyle="danger" type="button" onClick={this.handleCancel} >Cancel</Button>
+                    <Button bsStyle="primary" type="button" onClick={this.handleEditSubmit.bind(this, index, output.id)} >Done</Button>
+                </div>
+              )
+            } else {
+              return (
+                <div key={index} className="note">
+                  <div className="title-container"><h4>{output.title}</h4></div>
+                    <p>{output.content}</p>
+                    <Button bsStyle="danger" onClick={this.deleteNote.bind(this, index, output.id)}>Delete</Button>
+                    <Button bsStyle="primary" onClick={this.edit.bind(this, index)} >Edit</Button>
+                </div>
+              )
+            }
+          })};
         </div>
       </div>
     );

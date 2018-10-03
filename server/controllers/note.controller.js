@@ -65,8 +65,8 @@ exports.updateNote = (req, res) => {
     }
 
     // Find note based on noteId and update it 
-    Note.findOneAndUpdate(req.params.noteId, {
-        title: req.body.title || "Untitled",
+    Note.findByIdAndUpdate(req.params.noteId, {
+        // title: req.body.title || "Untitled", // Currently doesn't allow title editting
         content: req.body.content
     }, {new: true}) //this return the modified doc to the then() func instead of old one
      .then(note => {
